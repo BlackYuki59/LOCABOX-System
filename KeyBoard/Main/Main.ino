@@ -48,18 +48,18 @@ void initializeScreen() {
 
 void sendCommand(byte cmd) {
   // Envoyer une commande à l'écran
-  digitalWrite(RS_PIN, LOW);  // Commande
-  digitalWrite(CS_PIN, LOW);  // Activer le CS
+  digitalWrite(RS, LOW);  // Commande
+  digitalWrite(CS, LOW);  // Activer le CS
   SPI.transfer(cmd);          // Envoyer la commande
-  digitalWrite(CS_PIN, HIGH); // Désactiver le CS
+  digitalWrite(CS, HIGH); // Désactiver le CS
 }
 
 void sendData(byte data) {
   // Envoyer des données à l'écran
-  digitalWrite(RS_PIN, HIGH);  // Données
-  digitalWrite(CS_PIN, LOW);   // Activer le CS
+  digitalWrite(RS, HIGH);  // Données
+  digitalWrite(CS, LOW);   // Activer le CS
   SPI.transfer(data);          // Envoyer les données
-  digitalWrite(CS_PIN, HIGH);  // Désactiver le CS
+  digitalWrite(CS, HIGH);  // Désactiver le CS
 }
 
 void drawText(const char* text) {
@@ -70,6 +70,21 @@ void drawText(const char* text) {
     sendData(*text++);  // Envoyer chaque caractère
     i++;
   }
+}
+
+void setCursorPosition(uint8_t row, uint8_t col) {
+  uint8_t position = 0x80; // Commande de base pour la position du curseur (ligne 0, colonne 0)
+
+  // Ajouter le décalage selon la ligne
+  if (row == 1) {
+    position += 0x40; // Décalage pour accéder à la ligne 1 (si applicable à votre écran)
+  }
+
+  // Ajouter la colonne
+  position += col;
+
+  // Envoyer la commande de positionnement
+  sendCommand(position);
 }
 
 void deleteLastCharacterOnScreen(int currentIndex) {
@@ -154,9 +169,10 @@ void loop() {
      else if (touche == '#') {
       if (code_index > 0) {
         // Supprimer le premier caractère si '#' est pressé
+        deleteLastCharacterOnScreen(code_index);// Supprimer la lettre à l'écran
         code_index--;            // Décrémenter l'index
         code[code_index] = ' ';  // Effacer la dernière position
-        deleteLastCharacterOnScreen(code_index);// Supprimer la lettre à l'écran
+        
       }
       Serial.println("Dernier chiffre supprimer");
       etat = 3;
@@ -169,7 +185,8 @@ void loop() {
       etat = 3;
     } else {
       // Ajouter la touche au tableau si ce n'est pas '*' ou '#'
-      drawText(&touche);
+      char texteAffiche[2] = {touche, '\0'}; // Créer une chaîne contenant la touche
+      drawText(texteAffiche);                // Envoyer cette chaîne à l'écran
       code[code_index] = touche;
       code_index++;
       etat = 3; // Passer à l'état suivant
