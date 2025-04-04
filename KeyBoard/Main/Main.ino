@@ -3,7 +3,7 @@
 #define MOSI 11
 #define SCLK 13
 #define CS 10
-#define RS 12
+#define RS 9
 #define ECL 8
 #define DATA_OUT_A 3
 #define DATA_OUT_B 4
@@ -12,7 +12,7 @@
 #define DA 2
 #define SDA A4
 #define SCL A5
-
+#define MAX_CHARACTERS_PER_LINE 16
 char touche = ' ';
 char tab[] = {'1', '7', '4', '*', '3', '9', '6', '#', '2', '8', '5', '0', 'B', 'b','V', 'R'};
 char code[6] ; //tableau pour stocker un code de 6 caractères
@@ -26,15 +26,69 @@ const int slaveAddress = 0x08;
 unsigned char dataToSend[9] = {'D', 'A',' ', ' ', ' ', ' ', ' ', ' ', 'F'};
 
 
+void initializeScreen() {
+  // Initialiser l'écran avec les commandes appropriées pour RW1063
+  sendCommand(0x38);  // code d'affichage : 8 bits, 2 lignes, mode de caractères
+  delay(100);          // Attendre un court instant
+  sendCommand(0x38);  // code d'affichage : 8 bits, 2 lignes, mode de caractères
+  delay(100);          // Attendre un court instant
+  sendCommand(0x38);  // code d'affichage : 8 bits, 2 lignes, mode de caractères
+  delay(100);          // Attendre un court instant
+  sendCommand(0x38);  // code d'affichage : 8 bits, 2 lignes, mode de caractères
+  delay(100); 
+  sendCommand(0x08);
+  delay(100);
+  sendCommand(0x01);
+  delay(100); 
+  sendCommand(0x0C);  // Affichage activé, curseur masqué
+  delay(100);
+  sendCommand(0x06);  // Incrémenter automatiquement la position du curseur
+   delay(100); 
+}
 
+void sendCommand(byte cmd) {
+  // Envoyer une commande à l'écran
+  digitalWrite(RS_PIN, LOW);  // Commande
+  digitalWrite(CS_PIN, LOW);  // Activer le CS
+  SPI.transfer(cmd);          // Envoyer la commande
+  digitalWrite(CS_PIN, HIGH); // Désactiver le CS
+}
 
+void sendData(byte data) {
+  // Envoyer des données à l'écran
+  digitalWrite(RS_PIN, HIGH);  // Données
+  digitalWrite(CS_PIN, LOW);   // Activer le CS
+  SPI.transfer(data);          // Envoyer les données
+  digitalWrite(CS_PIN, HIGH);  // Désactiver le CS
+}
 
+void drawText(const char* text) {
+  int i = 0;
+  
+  // Parcours chaque caractère du texte à afficher
+  while (*text && i < MAX_CHARACTERS_PER_LINE) {
+    sendData(*text++);  // Envoyer chaque caractère
+    i++;
+  }
+}
+
+void deleteLastCharacterOnScreen(int currentIndex) {
+  if (currentIndex > 0) {
+    // Déplacer le curseur à la position de la dernière lettre
+    setCursorPosition(0, currentIndex - 1); // Ligne 0, colonne de la dernière lettre
+
+    // Envoyer un espace pour effacer la dernière lettre
+    sendData(' ');
+  }
+}
 
 void setup() {
   Serial.begin(115200);
   pinMode(ECL, OUTPUT);
   digitalWrite(ECL, HIGH);
   Wire.begin(slaveAddress);
+  pinMode(RS, OUTPUT);
+  pinMode(CS, OUTPUT);
  
   delay(100);
   pinMode(DATA_OUT_A, INPUT);
@@ -42,7 +96,11 @@ void setup() {
   pinMode(DATA_OUT_C, INPUT);
   pinMode(DATA_OUT_D, INPUT);
   pinMode(DA, INPUT_PULLUP);
+  SPI.begin();
+  SPI.setClockDivider(SPI_CLOCK_DIV64);  // Ajuste la vitesse SPI si nécessaire
   
+  // Initialisation de l'écran
+  initializeScreen(); 
   attachInterrupt(digitalPinToInterrupt(DA), lect_touche, RISING);
    Wire.onRequest(requestEvent);
 }
@@ -70,8 +128,13 @@ void requestEvent() {
 }
 
 void loop() {
+    
     if (etat==0)
     {
+      sendCommand(0x01);  // Effacer tout l'écran
+      delay(2);           // Attendre que l'effacement soit effectif
+      sendCommand(0x80);  // Définir le curseur au début (ligne 1, colonne 1)
+      delay(100);
       Serial.println(" ");
       Serial.println("Etat 0 : Initialisation");
       for (int i=0;i<taille;i++) code[i]=' ';
@@ -93,17 +156,20 @@ void loop() {
         // Supprimer le premier caractère si '#' est pressé
         code_index--;            // Décrémenter l'index
         code[code_index] = ' ';  // Effacer la dernière position
+        deleteLastCharacterOnScreen(code_index);// Supprimer la lettre à l'écran
       }
       Serial.println("Dernier chiffre supprimer");
       etat = 3;
     } else if (touche == '*') {
       // Réinitialiser tout si '*' est pressé
+      sendCommand(0x01);
       memset(code, 0, sizeof(code));
       code_index = 0;
       Serial.println("Code Réinitialiser");
       etat = 3;
     } else {
       // Ajouter la touche au tableau si ce n'est pas '*' ou '#'
+      drawText(&touche);
       code[code_index] = touche;
       code_index++;
       etat = 3; // Passer à l'état suivant
