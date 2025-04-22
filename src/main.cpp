@@ -73,21 +73,22 @@ void Porte() {
             message[10] = 'D';
             message[11] = 'B';         
             message[12] = 'F';
-        
-    }
-           if (Gache == HIGH && etatPorte == LOW && timer == 5000){
-            digitalWrite(Gache, LOW); // Gâche verrouillée après 5 secondes
-            digitalWrite(Led_R, HIGH); // LED rouge allumée
-            digitalWrite(Led_V, LOW);  // LED verte éteinte
-            digitalWrite(Led_O, LOW);  // LED orange éteinte
-            message[4]='D';
-            message[5]='C';
-            message[10] = 'V';
-            message[11] = 'B';         
-            message[12] = 'F'; 
-
+            if (timer == 5000){
+                digitalWrite(Gache, LOW); // Gâche verrouillée après 5 secondes
+                digitalWrite(Led_R, HIGH); // LED rouge allumée
+                digitalWrite(Led_V, LOW);  // LED verte éteinte
+                digitalWrite(Led_O, LOW);  // LED orange éteinte
+                message[4]='D';
+                message[5]='C';
+                message[10] = 'V';
+                message[11] = 'B';         
+                message[12] = 'F'; 
+    
+            }
         }
-         else if (VerifierCode((const char*)code, receivedData) == false) {
+    }
+          
+        else if (VerifierCode((const char*)code, receivedData) == false) {
             count++;
             if (count <= 2) {
                 message[10] = 'C';
@@ -95,12 +96,13 @@ void Porte() {
             } else if (count == 3) {
                 message[7] = 'E';
                 message[8] = 'C';
+                digitalWrite(Alarme, HIGH);
                 count = 0;
             }
         } else { // Aucun code valide n'a été entré
 
         if (etatPorte == HIGH) { // La porte est ouverte sans code valide
-            Serial.println("Intrusion détectée ! La porte est ouverte sans code valide.");
+                Serial.println("Intrusion détectée ! La porte est ouverte sans code valide.");
                 digitalWrite(Led_R, HIGH); // LED rouge allumée
                 digitalWrite(Led_V, LOW);  // LED verte éteinte
                 digitalWrite(Led_O, LOW);  // LED orange éteinte
@@ -108,7 +110,7 @@ void Porte() {
                 digitalWrite(Alarme, HIGH); // Activer l'alarme
                 message[7] = 'I';         // Message pour signaler une intrusion
                 message[8] = 'T';        // Message pour signaler une intrusion
-        } else { // La porte est fermée sans code valide
+        } else { // La porte est fermée 
                 Serial.println("La porte est fermée");
                 digitalWrite(Led_R, HIGH); // LED rouge allumée
                 digitalWrite(Led_V, LOW);  // LED verte éteinte
@@ -116,12 +118,9 @@ void Porte() {
                 digitalWrite(Gache, LOW);  // Gâche verrouillée
             }
         }
-    }
+    
     if(etatBouton == HIGH && Gache == LOW){
         digitalWrite(Gache, HIGH); // Gâche déverrouillée
-        digitalWrite(Led_R, LOW);  // LED rouge éteinte
-        digitalWrite(Led_V, LOW); // LED verte allumée
-        digitalWrite(Led_O, HIGH);  // LED orange éteinte
         if(etatPorte == HIGH) { // La porte est ouverte
             digitalWrite(Led_V,HIGH); // LED verte allumée
             digitalWrite(Led_R,LOW);  // LED rouge éteinte
@@ -129,7 +128,17 @@ void Porte() {
             message[10] = 'B';
             message[11] = 'P';
         }
-        
+        else{
+            digitalWrite(Led_R, LOW);  // LED rouge éteinte
+            digitalWrite(Led_V, LOW); // LED verte allumée
+            digitalWrite(Led_O, HIGH);  // LED orange éteinte
+            if (timer == 5000){
+                digitalWrite(Gache, LOW); // Gâche verrouillée après 5 secondes
+                digitalWrite(Led_R, HIGH); // LED rouge allumée
+                digitalWrite(Led_V, LOW);  // LED verte éteinte
+                digitalWrite(Led_O, LOW);  // LED orange éteinte
+            }
+        }
     }
 }
 

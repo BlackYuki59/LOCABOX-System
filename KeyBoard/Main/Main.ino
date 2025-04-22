@@ -168,9 +168,10 @@ void loop() {
      }
      else if (touche == '#') {
       if (code_index > 0) {
-        // Supprimer le premier caractère si '#' est pressé
-        deleteLastCharacterOnScreen(code_index);// Supprimer la lettre à l'écran
-        code_index--;            // Décrémenter l'index
+        setCursorPosition(0, code_index - 1); // Ligne 0, colonne de la dernière lettre
+        sendData(' ');                         // Envoyer un espace pour effacer
+        setCursorPosition(0, code_index - 1); // Repositionner le curseur après effacement
+        code_index-- ;            // Décrémenter l'index
         code[code_index] = ' ';  // Effacer la dernière position
         
       }
