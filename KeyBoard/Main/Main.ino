@@ -210,22 +210,17 @@ void loop() {
               
               
               
+              
              
             }
-           
-            
             temps=millis();
     }
 
     if(etat==3 && (millis()-temps)>5000) etat=0;
     if (etat==4 && (tx_done || (millis()-temps)>10000)) etat=0;
     
-    
-    
 
-      
-    
-
+  
     // Attendre avant de recommencer une nouvelle saisie
     delay(10);
 }
