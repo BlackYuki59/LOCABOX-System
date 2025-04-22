@@ -31,7 +31,7 @@ int count = 0;
 
 
 void requestData() {
-    Wire.requestFrom(slaveAddress, 9);
+    Wire.requestFrom(slaveAddress,9);
     int i = 0;
     while (Wire.available() && i < 9) {
       receivedData[i] = Wire.read();
@@ -41,44 +41,98 @@ void requestData() {
    
  
 }
+bool VerifierCode(const char* code, const char* receivedData) {
+    for (int i = 0; i < 6; i++) {
+        if (code[i + 1] != receivedData[i + 2]) {
+            return false; // Code incorrect
+        }
+    }
+    return true; // Code correct
+}
 
-// void setLedState(bool ledR, bool ledV, bool ledO, bool gache) {
-//     digitalWrite(Led_R, ledR ? HIGH : LOW);
-//     digitalWrite(Led_V, ledV ? HIGH : LOW);
-//     digitalWrite(Led_O, ledO ? HIGH : LOW);
-//     digitalWrite(Gache, gache ? HIGH : LOW);
-// }
+void Porte() {
+    int etatBouton = digitalRead(Button);
+    int etatPorte = digitalRead(Capteur_Porte); // Lire l'état du capteur de porte
+    // Vérifier si un code valide a été entré
+    if (VerifierCode((const char*)code, receivedData) == true){ // Code valide et gâche déverrouillée
+    digitalWrite(Gache, HIGH);
+        if (etatPorte == HIGH) { // La porte est ouverte
+            Serial.println("La porte est ouverte avec un code valide.");
+            digitalWrite(Led_R, LOW);  // LED rouge éteinte
+            digitalWrite(Led_V, HIGH); // LED verte allumée
+            digitalWrite(Led_O, LOW);  // LED orange éteinte
+             // Gâche déverrouillée
+             message[10] = 'D';
+             message[11] = 'B';         
+             message[12] = 'O';         // Indiquer que la porte est ouverte
+        } else { // La porte est fermée
+            Serial.println("La porte est fermée avec un code valide.");
+            digitalWrite(Led_R, LOW);  // LED rouge éteinte
+            digitalWrite(Led_V, LOW);  // LED verte éteinte
+            digitalWrite(Led_O, HIGH); // LED orange allumée
+            message[10] = 'D';
+            message[11] = 'B';         
+            message[12] = 'F';
+        
+    }
+           if (Gache == HIGH && etatPorte == LOW && timer == 5000){
+            digitalWrite(Gache, LOW); // Gâche verrouillée après 5 secondes
+            digitalWrite(Led_R, HIGH); // LED rouge allumée
+            digitalWrite(Led_V, LOW);  // LED verte éteinte
+            digitalWrite(Led_O, LOW);  // LED orange éteinte
+            message[4]='D';
+            message[5]='C';
+            message[10] = 'V';
+            message[11] = 'B';         
+            message[12] = 'F'; 
 
-// void verifierPorte() {
-//     // Lire l'état du capteur de porte
-//     int etatPorte = digitalRead(Capteur_Porte);
+        }
+         else if (VerifierCode((const char*)code, receivedData) == false) {
+            count++;
+            if (count <= 2) {
+                message[10] = 'C';
+                message[11] = 'F';
+            } else if (count == 3) {
+                message[7] = 'E';
+                message[8] = 'C';
+                count = 0;
+            }
+        } else { // Aucun code valide n'a été entré
 
-//     if (etatPorte == HIGH) { // La porte est ouverte
+        if (etatPorte == HIGH) { // La porte est ouverte sans code valide
+            Serial.println("Intrusion détectée ! La porte est ouverte sans code valide.");
+                digitalWrite(Led_R, HIGH); // LED rouge allumée
+                digitalWrite(Led_V, LOW);  // LED verte éteinte
+                digitalWrite(Led_O, LOW);  // LED orange éteinte
+                digitalWrite(Gache, LOW);  // Gâche verrouillée
+                digitalWrite(Alarme, HIGH); // Activer l'alarme
+                message[7] = 'I';         // Message pour signaler une intrusion
+                message[8] = 'T';        // Message pour signaler une intrusion
+        } else { // La porte est fermée sans code valide
+                Serial.println("La porte est fermée");
+                digitalWrite(Led_R, HIGH); // LED rouge allumée
+                digitalWrite(Led_V, LOW);  // LED verte éteinte
+                digitalWrite(Led_O, LOW);  // LED orange éteinte
+                digitalWrite(Gache, LOW);  // Gâche verrouillée
+            }
+        }
+    }
+    if(etatBouton == HIGH && Gache == LOW){
+        digitalWrite(Gache, HIGH); // Gâche déverrouillée
+        digitalWrite(Led_R, LOW);  // LED rouge éteinte
+        digitalWrite(Led_V, LOW); // LED verte allumée
+        digitalWrite(Led_O, HIGH);  // LED orange éteinte
+        if(etatPorte == HIGH) { // La porte est ouverte
+            digitalWrite(Led_V,HIGH); // LED verte allumée
+            digitalWrite(Led_R,LOW);  // LED rouge éteinte
+            digitalWrite(Led_O,LOW);  // LED orange éteinte
+            message[10] = 'B';
+            message[11] = 'P';
+        }
         
-        
-//         // Vérifier si un code valide a été entré
-//         if ((etat & 0x03) == 0x03) { // Code valide et gâche déverrouillée
-//             setLedState(false, true, false, true); // Rouge éteinte, Verte allumée, Orange éteinte, Gâche déverrouillée
-//             message[10] = 'O'; 
-//         } else {
-//             // Intrusion détectée
-//             setLedState(true, false, false, false); // Rouge allumée, Verte éteinte, Orange éteinte, Gâche verrouillée
-//             Serial.println("Intrusion détectée !");
-//             message[7] = 'I'; // Message pour signaler une intrusion
-//         }
-//     } else { // La porte est fermée
-//         Serial.println("La porte est fermée.");
-        
-//         if ((etat & 0x03) == 0x03) { // Gâche déverrouillée
-//             setLedState(false, false, true, false); // Rouge éteinte, Verte éteinte, Orange allumée, Gâche verrouillée
-        
-//         } else { // Gâche verrouillée
-//             setLedState(true, false, false, false); // Rouge allumée, Verte éteinte, Orange éteinte, Gâche verrouillée
-//             message[11] = 'F';
-//             
-//         }
-//     }
-// }
+    }
+}
+
 
 
 // This EUI must be in little-endian format, so least-significant-byte
@@ -112,7 +166,7 @@ const lmic_pinmap lmic_pins = {
     .rst = 14,
     .dio = {26, 33, 32}  // Pins for the Heltec ESP32 Lora board/ TTGO Lora32 with 3D metal antenna
 };
-static uint8_t message[]="MDRC  A  E   S";
+static uint8_t message[]="MDRCDCA  E   S";
 static uint8_t code[] = "        ";
 void do_send(osjob_t* j){
     // Payload to send (uplink)
@@ -228,6 +282,7 @@ void setup() {
     pinMode(Led_V, OUTPUT);        // LED verte
     pinMode(Led_R, OUTPUT);        // LED rouge
     pinMode(Led_O, OUTPUT);        // LED orange
+    pinMode(Alarme, OUTPUT);       
 
     // Initialiser les LEDs et la gâche
     digitalWrite(Led_R, HIGH); // LED rouge allumée par défaut
@@ -301,58 +356,20 @@ void loop() {
             }
             if(code[0]=='C')
             {
-                for(int i=0;i<8;i++) {
-                    Serial.print(code[i]);
-                }
                 code[0]='R';
-               
-                message[4]='N';
-                message[5]='C';
+                message[4]='C';
+                message[5]='R';
                
                 etat=etat|1;
             }
 
             if ((etat&0x03)==0x03)
             {
-                char test=1;
-                for (int i=0; i<6;i++) if(code[i+1]!=receivedData[i+2]) test=0;
-                if (test==1) 
-                {
-                    Serial.print("ouvrir le box");
-                    etat=etat&0xFD;
-                   
-                    message[12] = 'D';
-                    digitalWrite(Led_R, LOW);
-                    digitalWrite(Led_V, LOW);
-                    digitalWrite(Led_O, HIGH);
-                    
-                   
-                }
-
+                Porte();
                 
-                if (test == 0 )
-                { 
-                    
-                    count++;
-                    if (count <= 2)
-                    {
-                        message[7] = 'C';
-                        message[8] = 'F';
-                       
-                    }
-                    if (count==3){
-                        
-                        message[7] = 'E';
-                        message[8] = 'C';
-                        count = 0;
-                    }
-                    digitalWrite(Led_R, HIGH);
-                    digitalWrite(Led_V, LOW);
-                    digitalWrite(Led_O, LOW);
-                }
             }
             
-            //verifierPorte();
+            
             timer = 0;
             
         }
