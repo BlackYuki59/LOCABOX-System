@@ -5,6 +5,7 @@
 #include <SPI.h>
 #include <SSD1306.h>
 #include <Wire.h>
+#include <esp_task_wdt.h>
 #define LEDPIN 2
 #define OLED_I2C_ADDR 0x3C
 #define Gache 4
@@ -14,6 +15,7 @@
 #define Led_R 13
 #define Alarme 25
 #define Button 15
+
 
 int flag = 0;
 const int slaveAddress = 0x08;
@@ -28,7 +30,8 @@ int detect_touche=0;
 #define OLED_SCL 22  // Replace with the correct SCL pin for your board
 SSD1306 display (OLED_I2C_ADDR, OLED_SDA, OLED_SCL);
 int count = 0;
-
+unsigned long previousMillis = 0; // Stocke le temps précédent
+const unsigned long interval = 100000; // Intervalle de 5 secondes
 
 void requestData() {
     Wire.requestFrom(slaveAddress,9);
@@ -84,7 +87,7 @@ const lmic_pinmap lmic_pins = {
     .rst = 14,
     .dio = {26, 33, 32}  // Pins for the Heltec ESP32 Lora board/ TTGO Lora32 with 3D metal antenna
 };
-static uint8_t message[]="MDRCDCA  E   S";
+static uint8_t message[]="MDRCDCA  E  BFES";
 static uint8_t code[] = "        ";
 void do_send(osjob_t* j){
     // Payload to send (uplink)
@@ -110,7 +113,6 @@ void do_send(osjob_t* j){
         message[8]=' ';
         message[10]=' ';
         message[11]=' ';
-        message[12]=' ';
     }
     // Next TX is scheduled after TX_COMPLETE event.
     flag = 0;
@@ -190,24 +192,31 @@ void onEvent (ev_t ev) {
 
 }
 
+int etatPorte; // Declare the variable to store the state of the door sensor
+int etatButton;
 void setup() {
     Serial.begin(115200);
     delay(2500);                      // Give time to the serial monitor to pick up
     Serial.println(F("Starting..."));
 
-    pinMode(Capteur_Porte, INPUT); // Capteur de porte
+    pinMode(Capteur_Porte, INPUT_PULLUP); // Capteur de porte
     pinMode(Gache, OUTPUT);        // Gâche
     pinMode(Led_V, OUTPUT);        // LED verte
     pinMode(Led_R, OUTPUT);        // LED rouge
     pinMode(Led_O, OUTPUT);        // LED orange
-    pinMode(Alarme, OUTPUT);       
+    pinMode(Alarme, OUTPUT); 
+    pinMode(Button, INPUT_PULLDOWN); 
 
+    etatPorte = digitalRead(Capteur_Porte); // Capteur de porte
+    etatButton = digitalRead(Button);
     // Initialiser les LEDs et la gâche
     digitalWrite(Led_R, HIGH); // LED rouge allumée par défaut
     digitalWrite(Led_V, LOW);  // LED verte éteinte
     digitalWrite(Led_O, LOW);  // LED orange éteinte
     digitalWrite(Gache, HIGH); 
     digitalWrite(Alarme, LOW);
+
+    esp_task_wdt_init(10, true); 
 
     // Use the Blue pin to signal transmission.
     pinMode(LEDPIN,OUTPUT);
@@ -253,111 +262,7 @@ void setup() {
     //LMIC_startJoining();
 }
 
-void Porte() {
-    unsigned long previousMillis = 0;
-    const unsigned long interval = 5000; // 5 secondes
 
-    int etatBouton = digitalRead(Button);
-    int etatPorte = digitalRead(Capteur_Porte); // Lire l'état du capteur de porte
-
-    // Vérifier si un code valide a été entré
-    if (VerifierCode((const char*)code, receivedData) == true){ // Code valide et gâche déverrouillée
-    digitalWrite(Gache, LOW);
-        if (etatPorte == HIGH) { // La porte est ouverte
-            
-            digitalWrite(Led_R, LOW);  // LED rouge éteinte
-            digitalWrite(Led_V, HIGH); // LED verte allumée
-            digitalWrite(Led_O, LOW);  // LED orange éteinte
-             // Gâche déverrouillée
-             message[10] = 'D';
-             message[11] = 'B';         
-             message[12] = 'O';         // Indiquer que la porte est ouverte
-        } else { // La porte est fermée
-            
-            digitalWrite(Led_R, LOW);  // LED rouge éteinte
-            digitalWrite(Led_V, LOW);  // LED verte éteinte
-            digitalWrite(Led_O, HIGH); // LED orange allumée
-            message[10] = 'D';
-            message[11] = 'B';         
-            message[12] = 'F';
-            previousMillis =millis();
-
-            if (millis() - previousMillis >= interval){
-
-                digitalWrite(Gache, HIGH); // Gâche verrouillée après 5 secondes
-                digitalWrite(Led_R, HIGH); // LED rouge allumée
-                digitalWrite(Led_V, LOW);  // LED verte éteinte
-                digitalWrite(Led_O, LOW);  // LED orange éteinte
-                message[4]='D';
-                message[5]='C';
-                message[10] = 'V';
-                message[11] = 'B';         
-                message[12] = 'F'; 
-    
-            }
-        }
-    }
-          
-        else if (VerifierCode((const char*)code, receivedData) == false) {
-            count++;
-            if (count <= 2) {
-                message[10] = 'C';
-                message[11] = 'F';
-            } else if (count == 3) {
-                message[7] = 'E';
-                message[8] = 'C';
-                digitalWrite(Alarme, HIGH);
-                count = 0;
-            }
-        } 
-        else { // Aucun code valide n'a été entré
-
-            if (etatPorte == HIGH && Gache == HIGH) { // La porte est ouverte sans code valide
-                
-                digitalWrite(Led_R, HIGH); // LED rouge allumée
-                digitalWrite(Led_V, LOW);  // LED verte éteinte
-                digitalWrite(Led_O, LOW);  // LED orange éteinte
-                digitalWrite(Gache, HIGH);  // Gâche verrouillée
-                digitalWrite(Alarme, HIGH); // Activer l'alarme
-                message[7] = 'I';         // Message pour signaler une intrusion
-                message[8] = 'T';  
-                      // Message pour signaler une intrusion
-            } else { // La porte est fermée 
-                
-                digitalWrite(Led_R, HIGH); // LED rouge allumée
-                digitalWrite(Led_V, LOW);  // LED verte éteinte
-                digitalWrite(Led_O, LOW);  // LED orange éteinte
-                digitalWrite(Gache, LOW);  // Gâche verrouillée
-            }
-        }
-    
-    if(etatBouton == LOW && digitalRead(Gache) == HIGH){
-        digitalWrite(Gache, LOW); // Gâche déverrouillée
-
-        if(etatPorte == HIGH) { // La porte est ouverte
-            digitalWrite(Led_V,HIGH); // LED verte allumée
-            digitalWrite(Led_R,LOW);  // LED rouge éteinte
-            digitalWrite(Led_O,LOW);  // LED orange éteinte
-            message[10] = 'B';
-            message[11] = 'P';
-        }
-        else
-        {
-            digitalWrite(Led_R, LOW);  // LED rouge éteinte
-            digitalWrite(Led_V, LOW); // LED verte allumée
-            digitalWrite(Led_O, HIGH);  // LED orange éteinte
-            previousMillis =millis();
-
-            if(millis() - previousMillis >= interval) {
-                digitalWrite(Gache, HIGH); // Gâche verrouillée après 5 secondes
-                digitalWrite(Led_R, HIGH); // LED rouge allumée
-                digitalWrite(Led_V, LOW);  // LED verte éteinte
-                digitalWrite(Led_O, LOW);  // LED orange éteinte
-            }
-
-        }
-    }
-}
 
 char etat=0;
 void loop() {
@@ -382,8 +287,70 @@ void loop() {
             }
 
             if ((etat & 0x03) == 0x03) {
-                Porte();
+                if(VerifierCode((const char*)code, receivedData) == true){
+                    Serial.println("Code correct!");
+                    digitalWrite(Gache, LOW);  // Gâche activée
+                    digitalWrite(Alarme, LOW); // Alarme désactivée
+                    message[10] = 'D';
+                    message[11] = 'V';
+                    etat=etat|0x08;
+                    count = 0;
+                    
+                } else {
+                    Serial.println("Code incorrect!");
+                    count++;
+                    if (count <= 2) {
+                        message[10] = 'C';
+                        message[11] = 'F';
+                    } else if (count == 3) {
+                        message[7] = 'E';
+                        message[8] = 'C';
+                        digitalWrite(Alarme, HIGH);
+                        count = 0;
+                    }
+                }
+                // etat=etat|0x08;
+                etat=etat&0xFD;
             }
+                          
+             if (etatPorte == LOW && (etat & 0x08 )==0x08)  {
+                digitalWrite(Led_V, HIGH); // LED verte allumée
+                digitalWrite(Led_R, LOW);
+                digitalWrite(Led_O, LOW);
+                message[13] = 'O'; // Porte ouverte
+                message[14] = 'U';
+                etat=etat&0xF3;
+             }
+            if(etatPorte == LOW && (etat & 0x08)==0x00){
+                digitalWrite(Alarme, HIGH);
+                message[13] = 'O'; // Porte ouverte
+                message[14] = 'U';
+                message[7] = 'I';
+                message[8] = 'T';
+                etat=etat&0xF3;
+             }
+                
+             
+             if (etatPorte == HIGH && (etat & 0x08 )==0x08)  {
+                digitalWrite(Led_V, LOW); 
+                digitalWrite(Led_R, LOW);
+                digitalWrite(Led_O, HIGH);
+                message[13] = 'F';
+                message[14] = 'E'; // Porte fermée
+                unsigned long currentMillis = millis();
+                // if (currentMillis - previousMillis >= interval) {
+                //     previousMillis = currentMillis;
+                //     message[10] = 'V';
+                //     message[11] = 'R';
+                //     digitalWrite(Led_V, LOW); 
+                //     digitalWrite(Led_R, HIGH);
+                //     digitalWrite(Led_O, LOW);
+                //     digitalWrite(Gache, HIGH);
+                // }
+
+                etat=etat&0xF3;
+             }
+            
 
             timer = 0;
         } else {
@@ -391,6 +358,5 @@ void loop() {
         }
     }
 
-    // Yield to prevent WDT timeout
-    yield();
-}
+   }   // Yield to prevent WDT timeout
+    //yield();
