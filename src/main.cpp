@@ -31,7 +31,8 @@ int detect_touche=0;
 SSD1306 display (OLED_I2C_ADDR, OLED_SDA, OLED_SCL);
 int count = 0;
 unsigned long previousMillis = 0; // Stocke le temps précédent
-const unsigned long interval = 100000; // Intervalle de 5 secondes
+const unsigned long GACHE_INTERVAL = 5000; // Intervalle de 5 secondes
+bool gacheActive = false;
 
 void requestData() {
     Wire.requestFrom(slaveAddress,9);
@@ -319,6 +320,7 @@ void loop() {
                 digitalWrite(Led_O, LOW);
                 message[13] = 'O'; // Porte ouverte
                 message[14] = 'U';
+                gacheActive = false;
                 etat=etat&0xF3;
              }
             if(etatPorte == LOW && (etat & 0x08)==0x00){
@@ -327,6 +329,7 @@ void loop() {
                 message[14] = 'U';
                 message[7] = 'I';
                 message[8] = 'T';
+                gacheActive = false;
                 etat=etat&0xF3;
              }
                 
@@ -336,17 +339,23 @@ void loop() {
                 digitalWrite(Led_R, LOW);
                 digitalWrite(Led_O, HIGH);
                 message[13] = 'F';
-                message[14] = 'E'; // Porte fermée
+                message[14] = 'E';
+                if (!gacheActive) {
+                    previousMillis = millis();
+                    gacheActive = true;
+                } // Porte fermée
                 unsigned long currentMillis = millis();
-                // if (currentMillis - previousMillis >= interval) {
-                //     previousMillis = currentMillis;
-                //     message[10] = 'V';
-                //     message[11] = 'R';
-                //     digitalWrite(Led_V, LOW); 
-                //     digitalWrite(Led_R, HIGH);
-                //     digitalWrite(Led_O, LOW);
-                //     digitalWrite(Gache, HIGH);
-                // }
+                if (gacheActive && (currentMillis - previousMillis >= GACHE_INTERVAL)) {
+                    message[10] = 'V';
+                    message[11] = 'R';
+                    digitalWrite(Led_V, LOW); 
+                    digitalWrite(Led_R, HIGH);
+                    digitalWrite(Led_O, LOW);
+                    digitalWrite(Gache, HIGH);
+                    gacheActive = false; // Désactiver le timer
+                }
+                    
+                
 
                 etat=etat&0xF3;
              }
