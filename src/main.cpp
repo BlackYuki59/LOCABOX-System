@@ -5,16 +5,17 @@
 #include <SPI.h>
 #include <SSD1306.h>
 #include <Wire.h>
-#include <esp_task_wdt.h>
+
 #define LEDPIN 2
 #define OLED_I2C_ADDR 0x3C
 #define Gache 4
-#define Capteur_Porte 23
-#define Led_V 14
+#define Capteur_Porte 34
+
 #define Led_O 12
 #define Led_R 13
 #define Alarme 25
 #define Button 15
+#define Led_V 15
 
 
 int flag = 0;
@@ -82,6 +83,7 @@ static osjob_t sendjob;
 const unsigned TX_INTERVAL = 120;
 
 // Pin mapping
+
 const lmic_pinmap lmic_pins = {
     .nss = 18,
     .rxtx = LMIC_UNUSED_PIN,
@@ -200,24 +202,24 @@ void setup() {
     delay(2500);                      // Give time to the serial monitor to pick up
     Serial.println(F("Starting..."));
 
-    pinMode(Capteur_Porte, INPUT_PULLUP); // Capteur de porte
+    pinMode(Capteur_Porte, INPUT); // Capteur de porte
     pinMode(Gache, OUTPUT);        // Gâche
-    pinMode(Led_V, OUTPUT);        // LED verte
+    
     pinMode(Led_R, OUTPUT);        // LED rouge
     pinMode(Led_O, OUTPUT);        // LED orange
     pinMode(Alarme, OUTPUT); 
-    pinMode(Button, INPUT_PULLDOWN); 
+    pinMode(Button, INPUT); 
 
     etatPorte = digitalRead(Capteur_Porte); // Capteur de porte
     etatButton = digitalRead(Button);
     // Initialiser les LEDs et la gâche
     digitalWrite(Led_R, HIGH); // LED rouge allumée par défaut
-    digitalWrite(Led_V, LOW);  // LED verte éteinte
+   
     digitalWrite(Led_O, LOW);  // LED orange éteinte
     digitalWrite(Gache, HIGH); 
     digitalWrite(Alarme, LOW);
 
-    esp_task_wdt_init(10, true); 
+
 
     // Use the Blue pin to signal transmission.
     pinMode(LEDPIN,OUTPUT);
@@ -273,7 +275,11 @@ void loop() {
             requestData();
             message[1] = 'O';
             message[2] = 'K';
+            etatPorte = digitalRead(Capteur_Porte); // Capteur de porte
+            etatButton = digitalRead(Button);
+            Serial.println(etatButton);
 
+            
             if (receivedData[1] == 'C') {
                 for (int i = 0; i < 9; i++) {
                     Serial.print(receivedData[i]);
@@ -313,9 +319,9 @@ void loop() {
                 // etat=etat|0x08;
                 etat=etat&0xFD;
             }
-                          
-             if (etatPorte == LOW && (etat & 0x08 )==0x08)  {
-                digitalWrite(Led_V, HIGH); // LED verte allumée
+                        
+             if (etatPorte == HIGH && (etat & 0x08 )==0x08)  {
+                
                 digitalWrite(Led_R, LOW);
                 digitalWrite(Led_O, LOW);
                 message[13] = 'O'; // Porte ouverte
@@ -323,7 +329,7 @@ void loop() {
                 gacheActive = false;
                 etat=etat&0xF3;
              }
-            if(etatPorte == LOW && (etat & 0x08)==0x00){
+            if(etatPorte == HIGH && (etat & 0x08)==0x00){
                 digitalWrite(Alarme, HIGH);
                 message[13] = 'O'; // Porte ouverte
                 message[14] = 'U';
@@ -334,26 +340,28 @@ void loop() {
              }
                 
              
-             if (etatPorte == HIGH && (etat & 0x08 )==0x08)  {
-                digitalWrite(Led_V, LOW); 
+             if (etatPorte == LOW && (etat & 0x08 )==0x08)  {
+                
                 digitalWrite(Led_R, LOW);
                 digitalWrite(Led_O, HIGH);
                 message[13] = 'F';
                 message[14] = 'E';
-                if (!gacheActive) {
-                    previousMillis = millis();
-                    gacheActive = true;
-                } // Porte fermée
-                unsigned long currentMillis = millis();
-                if (gacheActive && (currentMillis - previousMillis >= GACHE_INTERVAL)) {
-                    message[10] = 'V';
-                    message[11] = 'R';
-                    digitalWrite(Led_V, LOW); 
-                    digitalWrite(Led_R, HIGH);
-                    digitalWrite(Led_O, LOW);
-                    digitalWrite(Gache, HIGH);
-                    gacheActive = false; // Désactiver le timer
-                }
+                
+                
+                // if (!gacheActive) {
+                //     previousMillis = millis();
+                //     gacheActive = true;
+                // } // Porte fermée
+                // unsigned long currentMillis = millis();
+                // if (gacheActive && (currentMillis - previousMillis >= GACHE_INTERVAL)) {
+                //     message[10] = 'V';
+                //     message[11] = 'R';
+                //     digitalWrite(Led_V, LOW); 
+                //     digitalWrite(Led_R, HIGH);
+                //     digitalWrite(Led_O, LOW);
+                //     digitalWrite(Gache, HIGH);
+                //     gacheActive = false; // Désactiver le timer
+                // }
                     
                 
 
