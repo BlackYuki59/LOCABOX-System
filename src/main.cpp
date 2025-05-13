@@ -31,9 +31,10 @@ int detect_touche=0;
 #define OLED_SCL 22  // Replace with the correct SCL pin for your board
 SSD1306 display (OLED_I2C_ADDR, OLED_SDA, OLED_SCL);
 int count = 0;
-unsigned long previousMillis = 0; // Stocke le temps précédent
+unsigned long temps; // Stocke le temps précédent
+unsigned long temps_Alarme;
 const unsigned long GACHE_INTERVAL = 5000; // Intervalle de 5 secondes
-bool gacheActive = false;
+
 
 void requestData() {
     Wire.requestFrom(slaveAddress,9);
@@ -266,7 +267,6 @@ void setup() {
 }
 
 
-
 char etat=0;
 void loop() {
     os_runloop_once();
@@ -277,30 +277,44 @@ void loop() {
             message[2] = 'K';
             etatPorte = digitalRead(Capteur_Porte); // Capteur de porte
             etatButton = digitalRead(Button);
-            Serial.println(etatButton);
+            Serial.print((int)etat);
+            Serial.print(" ");
+            Serial.print(etatPorte);
+            Serial.print(" ");
+            Serial.print(etatButton);
+            Serial.println(" ");            
 
             
-            if (receivedData[1] == 'C') {
+            if (receivedData[1] == 'C') //reception code arduino affichage monitor et etat b1=1
+            {
                 for (int i = 0; i < 9; i++) {
                     Serial.print(receivedData[i]);
                     etat = etat | 2;
                 }
             }
-            if (code[0] == 'C') {
+            if (code[0] == 'C')//reception code lora etat b0=1
+             {
                 code[0] = 'R';
                 message[4] = 'C';
                 message[5] = 'R';
                 etat = etat | 1;
+                Serial.println("Code Lora reçu");
+                
             }
 
-            if ((etat & 0x03) == 0x03) {
-                if(VerifierCode((const char*)code, receivedData) == true){
+            if ((etat & 0x03) == 0x03)  // si etat=3 (code recu arduino et code lora recu)
+            {
+                if(VerifierCode((const char*)code, receivedData) == true) //si code correct deverouille et met etat b3=1
+                {
                     Serial.println("Code correct!");
                     digitalWrite(Gache, LOW);  // Gâche activée
                     digitalWrite(Alarme, LOW); // Alarme désactivée
                     message[10] = 'D';
                     message[11] = 'V';
-                    etat=etat|0x08;
+                    message[4] = 'C';
+                    message[5] = 'U';
+                    temps = millis();
+                    etat=etat|0x18;
                     count = 0;
                     
                 } else {
@@ -316,64 +330,92 @@ void loop() {
                         count = 0;
                     }
                 }
-                // etat=etat|0x08;
-                etat=etat&0xFD;
+                etat=etat&0xFD; //remet etat b1=0
             }
                         
-             if (etatPorte == HIGH && (etat & 0x08 )==0x08)  {
-                
-                digitalWrite(Led_R, LOW);
-                digitalWrite(Led_O, LOW);
-                message[13] = 'O'; // Porte ouverte
-                message[14] = 'U';
-                gacheActive = false;
-                etat=etat&0xF3;
-             }
-            if(etatPorte == HIGH && (etat & 0x08)==0x00){
-                digitalWrite(Alarme, HIGH);
-                message[13] = 'O'; // Porte ouverte
-                message[14] = 'U';
-                message[7] = 'I';
-                message[8] = 'T';
-                gacheActive = false;
-                etat=etat&0xF3;
-             }
-                
              
-             if (etatPorte == LOW && (etat & 0x08 )==0x08)  {
-                
-                digitalWrite(Led_R, LOW);
-                digitalWrite(Led_O, HIGH);
-                message[13] = 'F';
-                message[14] = 'E';
-                
-                
-                // if (!gacheActive) {
-                //     previousMillis = millis();
-                //     gacheActive = true;
-                // } // Porte fermée
-                // unsigned long currentMillis = millis();
-                // if (gacheActive && (currentMillis - previousMillis >= GACHE_INTERVAL)) {
-                //     message[10] = 'V';
-                //     message[11] = 'R';
-                //     digitalWrite(Led_V, LOW); 
-                //     digitalWrite(Led_R, HIGH);
-                //     digitalWrite(Led_O, LOW);
-                //     digitalWrite(Gache, HIGH);
-                //     gacheActive = false; // Désactiver le timer
-                // }
+            if((etatPorte == HIGH ) && ((etat & 0x08)==0x00) && ((etat & 0x20) == 0x00)&& ((etat & 0x04) == 0x00)){//Porte ouverte et gache vérouillée met etat b5=1, met etat b6=1 
+              
+                    digitalWrite(Alarme, HIGH);
+                    message[13] = 'O'; // Porte ouverte
+                    message[14] = 'U';
+                    message[7] = 'I';
+                    message[8] = 'T'; 
+                    etat=etat|0x20;
+                    etat=etat|0x40;
+                    temps_Alarme = millis();
+                    Serial.println("Porte ouverte alarme déclenchée");
                     
                 
-
-                etat=etat&0xF3;
-             }
+            }
+            if((etatPorte == LOW) && (etatButton == LOW) && ((etat & 0x04)==0x00)){ //Box fermée et bouton appuyé = dévérouillage gache met etat b2=1
+                    digitalWrite(Gache, LOW);
+                    digitalWrite(Led_O, HIGH);
+                    digitalWrite(Led_R, LOW);
+                    message[13] = 'F';
+                    message[14] = 'E';
+                    message[10] = 'D';
+                    message[11] = 'V'; 
+                    temps = millis();
+                    etat=etat|0x04;
+                    Serial.println("Déverrouillage de l'intérieur du box");
+                    
+                }
+                
+                    
+                
             
+                
+             
+           
+            if (((etat & 0x08 )==0x08)  && (etatPorte == HIGH))  {//code correcte et portre ouverte 
+                
+                    digitalWrite(Led_R, LOW);
+                    digitalWrite(Led_O, LOW);
+                    message[13] = 'O'; // Porte ouverte
+                    message[14] = 'U';
+                    etat=etat&0xF7;
+                    Serial.println("Porte ouverte");
+                 }
+                
+            if (etatPorte == LOW){ // Porte fermée
+                    digitalWrite(Led_R, HIGH);
+                    message[13] = 'F';
+                    message[14] = 'E';
+                    temps = millis();
+                    
+                    etat = etat & 0xDB;
+            }
+            if (((etat & 0x10)== 0x10) &&(millis()-temps)>5000){//Vérouillage Gache parès 5 secondes lorsque la porte est fermée
+                        digitalWrite(Gache, HIGH);
+                        digitalWrite(Led_R, HIGH);
+                        digitalWrite(Led_O, LOW);
+                        message[10] = 'V';
+                        message[11] = 'R';
+                        etat=etat&0xE7;
+                        Serial.println("Gâche verrouillée");
+            }
+            if(((etat & 0x40) == 0x40) && (millis()-temps_Alarme)>30000){//Désactivation de l'alarme après 30 secondes
+                        digitalWrite(Alarme, LOW);
+                        etat=etat&0xBF;
+                        Serial.println("Alarme désactivée");
+            }
+                    
+                
+                
+                
+                
 
-            timer = 0;
-        } else {
-            timer++;
+                
+            
+          timer = 0;  
+        }
+    
+            
+    
+    else {
+        timer++;
         }
     }
-
-   }   // Yield to prevent WDT timeout
-    //yield();
+        }
+        
