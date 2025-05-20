@@ -309,12 +309,16 @@ void loop() {
                     Serial.println("Code correct!");
                     digitalWrite(Gache, LOW);  // Gâche activée
                     digitalWrite(Alarme, LOW); // Alarme désactivée
+                    digitalWrite(Led_R, LOW);  // LED rouge éteinte
+                    digitalWrite(Led_O, HIGH); // LED orange allumée
                     message[10] = 'D';
                     message[11] = 'V';
                     message[4] = 'C';
                     message[5] = 'U';
                     temps = millis();
-                    etat=etat|0x18;
+                    etat=etat&0xFE; //remet etat b0=0
+                    etat=etat|0x10;
+                    etat=etat|0x08;
                     count = 0;
                     
                 } else {
@@ -361,12 +365,10 @@ void loop() {
                     Serial.println("Déverrouillage de l'intérieur du box");
                     
                 }
-                
-                    
-                
-            
-                
-             
+            if (((etat & 0x04)==0x04) && etatPorte == HIGH){
+                etat=etat|0x18;
+            }
+                  
            
             if (((etat & 0x08 )==0x08)  && (etatPorte == HIGH))  {//code correcte et portre ouverte 
                 
@@ -374,28 +376,30 @@ void loop() {
                     digitalWrite(Led_O, LOW);
                     message[13] = 'O'; // Porte ouverte
                     message[14] = 'U';
-                    etat=etat&0xF7;
                     Serial.println("Porte ouverte");
+                    temps = millis();
                  }
                 
             if (etatPorte == LOW){ // Porte fermée
                     digitalWrite(Led_R, HIGH);
                     message[13] = 'F';
-                    message[14] = 'E';
-                    temps = millis();
+                    message[14] = 'E';                    
+                    etat = etat & 0xDF;
+                    etat = etat & 0xF7;
                     
-                    etat = etat & 0xDB;
             }
-            if (((etat & 0x10)== 0x10) &&(millis()-temps)>5000){//Vérouillage Gache parès 5 secondes lorsque la porte est fermée
+            if (((etat & 0x10)== 0x10) &&((millis()-temps)>5000) && etatPorte == LOW){//Vérouillage Gache parès 5 secondes lorsque la porte est fermée
                         digitalWrite(Gache, HIGH);
                         digitalWrite(Led_R, HIGH);
                         digitalWrite(Led_O, LOW);
                         message[10] = 'V';
                         message[11] = 'R';
                         etat=etat&0xE7;
+                        
+                        etat = etat & 0xFB;
                         Serial.println("Gâche verrouillée");
             }
-            if(((etat & 0x40) == 0x40) && (millis()-temps_Alarme)>30000){//Désactivation de l'alarme après 30 secondes
+            if(((etat & 0x40) == 0x40) && ((millis()-temps_Alarme)>30000)){//Désactivation de l'alarme après 30 secondes
                         digitalWrite(Alarme, LOW);
                         etat=etat&0xBF;
                         Serial.println("Alarme désactivée");
