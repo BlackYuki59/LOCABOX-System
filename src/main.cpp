@@ -331,6 +331,8 @@ void loop() {
                         message[7] = 'E';
                         message[8] = 'C';
                         digitalWrite(Alarme, HIGH);
+                        etat=etat|0x40;
+                        temps_Alarme = millis();
                         count = 0;
                     }
                 }
